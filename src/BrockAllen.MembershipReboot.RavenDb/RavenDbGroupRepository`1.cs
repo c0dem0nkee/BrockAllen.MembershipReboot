@@ -22,7 +22,7 @@ namespace BrockAllen.MembershipReboot.RavenDb
         {
             CheckDisposed();
             IGroupRepository r = this;
-            return r.GetAll().Where(x => x.ID == (Guid)keys[0]).SingleOrDefault();
+            return r.GetAll().Where(x => x.Id == (int)keys[0]).SingleOrDefault();
         }
     }
 }

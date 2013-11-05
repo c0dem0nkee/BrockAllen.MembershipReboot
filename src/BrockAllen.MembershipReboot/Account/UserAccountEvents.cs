@@ -21,6 +21,10 @@ namespace BrockAllen.MembershipReboot
     public class PasswordChangedEvent : UserAccountEvent { 
         public string NewPassword { get; set; }
     }
+    public class StaticPinChangedEvent : UserAccountEvent {
+        public string NewPin { get; set; }
+    }
+
     public class CertificateAddedEvent : UserAccountEvent, IAllowMultiple
     {
         public UserCertificate Certificate { get; set; }
@@ -77,6 +81,7 @@ namespace BrockAllen.MembershipReboot
         public X509Certificate2 Certificate { get; set; }
     }
     public class SuccessfulTwoFactorAuthCodeLoginEvent : SuccessfulLoginEvent { }
+    public class SuccessfulTwoFactorLoginEvent : SuccessfulLoginEvent { }
 
     public abstract class FailedLoginEvent : UserAccountEvent { }
     public class AccountNotVerifiedEvent : FailedLoginEvent { }

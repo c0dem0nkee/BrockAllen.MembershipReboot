@@ -35,14 +35,14 @@ namespace BrockAllen.MembershipReboot
             return query.ToArray();
         }
 
-        public static Guid GetUserID(this IPrincipal p)
+        public static int GetUserId(this IPrincipal p)
         {
             var cp = p as ClaimsPrincipal;
             if (cp != null)
             {
                 var id = cp.Claims.GetValue(ClaimTypes.NameIdentifier);
-                Guid g;
-                if (Guid.TryParse(id, out g))
+                int g;
+                if (int.TryParse(id, out g))
                 {
                     return g;
                 }
@@ -56,8 +56,8 @@ namespace BrockAllen.MembershipReboot
             if (cp != null)
             {
                 var id = cp.Claims.GetValue(ClaimTypes.NameIdentifier);
-                Guid g;
-                if (Guid.TryParse(id, out g))
+                int g;
+                if (int.TryParse(id, out g))
                 {
                     return true;
                 }

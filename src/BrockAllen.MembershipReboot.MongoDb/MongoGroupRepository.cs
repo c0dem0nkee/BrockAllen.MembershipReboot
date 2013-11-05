@@ -25,7 +25,7 @@ namespace BrockAllen.MembershipReboot.MongoDb
 
         public Group Get(params object[] keys)
         {
-            return _db.Groups().FindOne(Query<Group>.EQ(e => e.ID, (Guid)keys[0]));
+            return _db.Groups().FindOne(Query<Group>.EQ(e => e.Id, (int)keys[0]));
         }
 
         public void Add(Group item)
@@ -40,7 +40,7 @@ namespace BrockAllen.MembershipReboot.MongoDb
 
         public void Remove(Group item)
         {
-            _db.Groups().Remove(Query<Group>.EQ(e => e.ID, item.ID));
+            _db.Groups().Remove(Query<Group>.EQ(e => e.Id, item.Id));
         }
 
         public void Dispose()

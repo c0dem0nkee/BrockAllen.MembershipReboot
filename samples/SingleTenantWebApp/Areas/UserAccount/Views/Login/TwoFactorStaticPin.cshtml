@@ -1,0 +1,26 @@
+﻿@model BrockAllen.MembershipReboot.Mvc.Areas.UserAccount.Models.TwoFactorAuthInputModel
+@{
+    ViewBag.Title = "Two Factor Code Auth";
+}
+
+<h2>To signin enter the required numbers from your pin</h2>
+@using (Html.BeginForm("TwoFactorStaticPin", "Login"))
+{
+    @Html.ValidationSummary()
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(x=>x.ReturnUrl)
+    @Html.HiddenFor(x => x.Code);
+    @Html.HiddenFor(x => x.FirstPinPosition);
+    @Html.HiddenFor(x => x.SecondPinPosition);
+    <p>
+        <label>Please enter the @Model.FirstPinPosition number of your pin</label>
+        @Html.EditorFor(x=>x.FirstPinCharacter)
+    </p>
+    <p>
+        <label>Please enter the @Model.SecondPinPosition number of your pin</label>
+        @Html.EditorFor(x=>x.SecondPinCharacter)
+    </p>
+    <p>
+        <button name="button" value="signin">Sign In</button>
+    </p>
+}

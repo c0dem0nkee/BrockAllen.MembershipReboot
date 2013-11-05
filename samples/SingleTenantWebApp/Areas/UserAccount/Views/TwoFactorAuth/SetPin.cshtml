@@ -1,0 +1,26 @@
+﻿@{
+    ViewBag.Title = "Two Factor Auth";
+}
+
+<h2>@ViewBag.Title</h2>
+
+@if (ViewData["Message"] != null) {
+    <h2>@ViewData["Message"]</h2>
+}
+
+@using (Html.BeginForm("SetPin", "TwoFactorAuth")) {
+    <fieldset>
+        @Html.AntiForgeryToken()
+        @Html.ValidationSummary()
+        
+        <p>
+            Please set the pin code
+        </p>
+        <p>
+            <input type="text" id="newPin" name="newPin" maxlength="6" />
+        </p>
+        <p>
+            <button>Submit</button>
+        </p>
+    </fieldset>
+}

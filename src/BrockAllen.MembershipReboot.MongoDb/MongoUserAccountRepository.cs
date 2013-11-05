@@ -25,7 +25,7 @@ namespace BrockAllen.MembershipReboot.MongoDb
 
         public UserAccount Get(params object[] keys)
         {
-            return _db.Users().FindOne(Query<UserAccount>.EQ(e => e.ID, (Guid)keys[0]));
+            return _db.Users().FindOne(Query<UserAccount>.EQ(e => e.Id, (int)keys[0]));
         }
 
         public void Add(UserAccount item)
@@ -40,7 +40,7 @@ namespace BrockAllen.MembershipReboot.MongoDb
 
         public void Remove(UserAccount item)
         {
-            _db.Users().Remove(Query<UserAccount>.EQ(e => e.ID, item.ID));
+            _db.Users().Remove(Query<UserAccount>.EQ(e => e.Id, item.Id));
         }
 
         public void Dispose()

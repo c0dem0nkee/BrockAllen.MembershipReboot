@@ -27,6 +27,7 @@ namespace BrockAllen.MembershipReboot
         Lazy<AggregateValidator> usernameValidator;
         Lazy<AggregateValidator> emailValidator;
         Lazy<AggregateValidator> passwordValidator;
+        Lazy<AggregateValidator> pinValidator;
 
         public UserAccountService(IUserAccountRepository userRepository)
             : this(new MembershipRebootConfiguration(), userRepository)
@@ -74,6 +75,14 @@ namespace BrockAllen.MembershipReboot
                 val.Add(configuration.PasswordValidator);
                 return val;
             });
+
+            this.pinValidator = new Lazy<AggregateValidator>(() => {
+                var val = new AggregateValidator();
+                val.Add(UserAccountValidation.PinMustBeCorrectLength);
+                val.Add(UserAccountValidation.PinMustBeDifferentThanCurrent);
+                val.Add(UserAccountValidation.PinMustBeNumeric);
+                return val;
+            });
         }
 
         internal protected void ValidateUsername(UserAccount account, string value)
@@ -91,6 +100,14 @@ namespace BrockAllen.MembershipReboot
             if (result != null && result != ValidationResult.Success)
             {
                 Tracing.Error("ValidatePassword failed: " + result.ErrorMessage);
+                throw new ValidationException(result.ErrorMessage);
+            }
+        }
+
+        internal protected void ValidatePin(UserAccount account, string value) {
+            var result = this.pinValidator.Value.Validate(this, account, value);
+            if (result != null && result != ValidationResult.Success) {
+                Tracing.Error("ValidatePin failed: " + result.ErrorMessage);
                 throw new ValidationException(result.ErrorMessage);
             }
         }
@@ -112,7 +129,7 @@ namespace BrockAllen.MembershipReboot
                 throw new ArgumentNullException("account");
             }
 
-            Tracing.Information("[UserAccountService.Update] called for account: {0}", account.ID);
+            Tracing.Information("[UserAccountService.Update] called for account: {0}", account.Id);
 
             account.LastUpdated = account.UtcNow;
             this.userRepository.Update(account);
@@ -184,7 +201,7 @@ namespace BrockAllen.MembershipReboot
             return account;
         }
 
-        public virtual UserAccount GetByID(Guid id)
+        public virtual UserAccount GetById(int id)
         {
             var account = this.userRepository.Get(id);
             if (account == null)
@@ -227,7 +244,7 @@ namespace BrockAllen.MembershipReboot
                 from u in userRepository.GetAll()
                 where u.Tenant == tenant
                 from l in u.LinkedAccounts
-                where l.ProviderName == provider && l.ProviderAccountID == id
+                where l.ProviderName == provider && l.ProviderAccountId == id
                 select u;
 
             var account = query.SingleOrDefault();
@@ -392,12 +409,12 @@ namespace BrockAllen.MembershipReboot
             return false;
         }
 
-        public virtual void DeleteAccount(Guid accountID)
+        public virtual void DeleteAccount(int accountId)
         {
-            Tracing.Information("[UserAccountService.DeleteAccount] called: {0}", accountID);
+            Tracing.Information("[UserAccountService.DeleteAccount] called: {0}", accountId);
 
-            var account = this.GetByID(accountID);
-            if (account == null) throw new ArgumentException("Invalid AccountID");
+            var account = this.GetById(accountId);
+            if (account == null) throw new ArgumentException("Invalid accountId");
 
             DeleteAccount(account);
         }
@@ -406,14 +423,14 @@ namespace BrockAllen.MembershipReboot
         {
             if (account == null) throw new ArgumentNullException("account");
 
-            Tracing.Verbose("[UserAccountService.DeleteAccount] marking account as closed: {0}", account.ID);
+            Tracing.Verbose("[UserAccountService.DeleteAccount] marking account as closed: {0}", account.Id);
 
             account.CloseAccount();
             Update(account);
 
             if (SecuritySettings.AllowAccountDeletion || !account.IsAccountVerified)
             {
-                Tracing.Verbose("[UserAccountService.DeleteAccount] removing account record: {0}", account.ID);
+                Tracing.Verbose("[UserAccountService.DeleteAccount] removing account record: {0}", account.Id);
                 this.userRepository.Remove(account);
             }
         }
@@ -525,7 +542,7 @@ namespace BrockAllen.MembershipReboot
         
         protected internal virtual bool Authenticate(UserAccount account, string password, AuthenticationPurpose purpose)
         {
-            Tracing.Verbose("[UserAccountService.Authenticate] for account: {0}", account.ID);
+            Tracing.Verbose("[UserAccountService.Authenticate] for account: {0}", account.Id);
             
             int failedLoginCount = SecuritySettings.AccountLockoutFailedLoginAttempts;
             TimeSpan lockoutDuration = SecuritySettings.AccountLockoutDuration;
@@ -557,6 +574,16 @@ namespace BrockAllen.MembershipReboot
                         Tracing.Verbose("[UserAccountService.Authenticate] requesting 2fa mobile code: {0}, {1}", account.Tenant, account.Username);
                         result = account.RequestTwoFactorAuthCode();
                     }
+
+                    if (account.AccountTwoFactorAuthMode == TwoFactorAuthMode.Authenticator) {
+                        Tracing.Verbose("[UserAccountService.Authenticate] requesting 2fa for authenticator: {0}, {1}", account.Tenant, account.Username);
+                        result = account.RequestTwoFactorAuthenticator();
+                    }
+
+                    if (account.AccountTwoFactorAuthMode == TwoFactorAuthMode.StaticPin) {
+                        Tracing.Verbose("[UserAccountService.Authenticate] requesting 2fa for static pin: {0}, {1}", account.Tenant, account.Username);
+                        result = account.RequestTwoFactorStaticPin();
+                    }
                 }
             }
 
@@ -567,23 +594,61 @@ namespace BrockAllen.MembershipReboot
             return result;
         }
 
-        public virtual bool AuthenticateWithCode(Guid accountID, string code)
+        public virtual bool AuthenticateWithCode(int accountId, string code)
         {
             UserAccount account;
-            return AuthenticateWithCode(accountID, code, out account);
+            return AuthenticateWithCode(accountId, code, out account);
         }
 
-        public virtual bool AuthenticateWithCode(Guid accountID, string code, out UserAccount account)
+        public virtual bool AuthenticateWithCode(int accountId, string code, out UserAccount account)
         {
-            Tracing.Information("[UserAccountService.AuthenticateWithCode] called {0}", accountID);
+            Tracing.Information("[UserAccountService.AuthenticateWithCode] called {0}", accountId);
 
-            account = this.GetByID(accountID);
-            if (account == null) throw new ArgumentException("Invalid AccountID");
+            account = this.GetById(accountId);
+            if (account == null) throw new ArgumentException("Invalid accountId");
 
             var result = account.VerifyTwoFactorAuthCode(code);
             Update(account);
 
             Tracing.Verbose("[UserAccountService.AuthenticateWithCode] result {0}", result);
+
+            return result;
+        }
+
+        public virtual bool AuthenticateWithAuthenticator(int accountId, string code) {
+            UserAccount account;
+            return AuthenticateWithAuthenticator(accountId, code, out account);
+        }
+
+        public virtual bool AuthenticateWithAuthenticator(int accountId, string code, out UserAccount account) {
+            Tracing.Information("[UserAccountService.AuthenticateWithAuthenticator] called {0}", accountId);
+
+            account = this.GetById(accountId);
+            if (account == null) throw new ArgumentException("Invalid accountId");
+
+            var result = account.VerifyTwoFactorAuthenticatorCode(code);
+            Update(account);
+
+            Tracing.Verbose("[UserAccountService.AuthenticateWithAuthenticator] result {0}", result);
+
+            return result;
+        }
+
+        public virtual bool AuthenticateWithStaticPin(int accountId, string firstCharacter, string secondCharacter) {
+            UserAccount account;
+            return AuthenticateWithStaticPin(accountId, firstCharacter, secondCharacter, out account);
+        }
+
+        public virtual bool AuthenticateWithStaticPin(int accountId, string firstCharacter, string secondCharacter, out UserAccount account) {
+            Tracing.Information("[UserAccountService.AuthenticateWithStaticPin] called {0}", accountId);
+
+            account = this.GetById(accountId);
+            if (account == null) throw new ArgumentException("Invalid accountId");
+
+            var result = account.VerifyTwoFactorStaticPin(firstCharacter, secondCharacter);
+            Update(account);
+
+            Tracing.Verbose("[UserAccountService.AuthenticateWithStaticPin] result {0}", result);
 
             return result;
         }
@@ -615,20 +680,20 @@ namespace BrockAllen.MembershipReboot
             return result;
         }
 
-        public virtual bool AuthenticateWithCertificate(Guid accountID, X509Certificate2 certificate)
+        public virtual bool AuthenticateWithCertificate(int accountId, X509Certificate2 certificate)
         {
             UserAccount account;
-            return AuthenticateWithCertificate(accountID, certificate, out account);
+            return AuthenticateWithCertificate(accountId, certificate, out account);
         }
 
-        public virtual bool AuthenticateWithCertificate(Guid accountID, X509Certificate2 certificate, out UserAccount account)
+        public virtual bool AuthenticateWithCertificate(int accountId, X509Certificate2 certificate, out UserAccount account)
         {
-            Tracing.Information("[UserAccountService.AuthenticateWithCertificate] called for userID: {0}", accountID);
+            Tracing.Information("[UserAccountService.AuthenticateWithCertificate] called for userID: {0}", accountId);
             
             certificate.Validate();
 
-            account = this.GetByID(accountID);
-            if (account == null) throw new ArgumentException("Invalid AccountID");
+            account = this.GetById(accountId);
+            if (account == null) throw new ArgumentException("Invalid accountId");
 
             var result = account.Authenticate(certificate);
             Update(account);
@@ -638,31 +703,31 @@ namespace BrockAllen.MembershipReboot
             return result;
         }
         
-        public virtual void ConfigureTwoFactorAuthentication(Guid accountID, TwoFactorAuthMode mode)
+        public virtual void ConfigureTwoFactorAuthentication(int accountId, TwoFactorAuthMode mode)
         {
-            Tracing.Information("[UserAccountService.ConfigureTwoFactorAuthentication] called: {0}", accountID);
+            Tracing.Information("[UserAccountService.ConfigureTwoFactorAuthentication] called: {0}", accountId);
 
-            var account = this.GetByID(accountID);
-            if (account == null) throw new ArgumentException("Invalid AccountID");
+            var account = this.GetById(accountId);
+            if (account == null) throw new ArgumentException("Invalid accountId");
 
             account.ConfigureTwoFactorAuthentication(mode);
             Update(account);
         }
 
-        public virtual void SendTwoFactorAuthenticationCode(Guid accountID)
+        public virtual void SendTwoFactorAuthenticationCode(int accountId)
         {
-            Tracing.Information("[UserAccountService.SendTwoFactorAuthenticationCode] called: {0}", accountID);
+            Tracing.Information("[UserAccountService.SendTwoFactorAuthenticationCode] called: {0}", accountId);
 
-            var account = this.GetByID(accountID);
-            if (account == null) throw new ArgumentException("Invalid AccountID");
+            var account = this.GetById(accountId);
+            if (account == null) throw new ArgumentException("Invalid accountId");
             
             account.RequestTwoFactorAuthCode();
             Update(account);
         }
 
-        public virtual void SetPassword(Guid accountID, string newPassword)
+        public virtual void SetPassword(int accountId, string newPassword)
         {
-            Tracing.Information("[UserAccountService.SetPassword] called: {0}", accountID);
+            Tracing.Information("[UserAccountService.SetPassword] called: {0}", accountId);
 
             if (String.IsNullOrWhiteSpace(newPassword))
             {
@@ -670,8 +735,8 @@ namespace BrockAllen.MembershipReboot
                 throw new ValidationException("Invalid new password.");
             }
 
-            var account = this.GetByID(accountID);
-            if (account == null) throw new ArgumentException("Invalid AccountID");
+            var account = this.GetById(accountId);
+            if (account == null) throw new ArgumentException("Invalid accountId");
 
             ValidatePassword(account, newPassword);
 
@@ -679,9 +744,26 @@ namespace BrockAllen.MembershipReboot
             Update(account);
         }
 
-        public virtual void ChangePassword(Guid accountID, string oldPassword, string newPassword)
+        public virtual void SetStaticPin(int accountId, string newPin) {
+            Tracing.Information("[UserAccountService.SetStaticPin] called: {0}", accountId);
+
+            if (String.IsNullOrWhiteSpace(newPin)) {
+                Tracing.Error("[UserAccountService.SetStaticPin] failed -- null newPin");
+                throw new ValidationException("Invalid new pin.");
+            }
+
+            var account = this.GetById(accountId);
+            if (account == null) throw new ArgumentException("Invalid accountId");
+
+            ValidatePin(account, newPin);
+
+            account.SetStaticPin(newPin);
+            Update(account);
+        }
+
+        public virtual void ChangePassword(int accountId, string oldPassword, string newPassword)
         {
-            Tracing.Information("[UserAccountService.ChangePassword] called: {0}", accountID);
+            Tracing.Information("[UserAccountService.ChangePassword] called: {0}", accountId);
 
             if (String.IsNullOrWhiteSpace(oldPassword))
             {
@@ -694,8 +776,8 @@ namespace BrockAllen.MembershipReboot
                 throw new ValidationException("Invalid new password.");
             }
 
-            var account = this.GetByID(accountID);
-            if (account == null) throw new ArgumentException("Invalid AccountID");
+            var account = this.GetById(accountId);
+            if (account == null) throw new ArgumentException("Invalid accountId");
 
             ValidatePassword(account, newPassword);
 
@@ -798,9 +880,9 @@ namespace BrockAllen.MembershipReboot
             Update(account);
         }
 
-        public virtual void ChangeUsername(Guid accountID, string newUsername)
+        public virtual void ChangeUsername(int accountId, string newUsername)
         {
-            Tracing.Information("[UserAccountService.ChangeUsername] called: {0}", accountID);
+            Tracing.Information("[UserAccountService.ChangeUsername] called: {0}", accountId);
 
             if (SecuritySettings.EmailIsUsername)
             {
@@ -814,8 +896,8 @@ namespace BrockAllen.MembershipReboot
                 throw new ValidationException("Invalid username.");
             }
 
-            var account = this.GetByID(accountID);
-            if (account == null) throw new ArgumentException("Invalid AccountID");
+            var account = this.GetById(accountId);
+            if (account == null) throw new ArgumentException("Invalid accountId");
 
             ValidateUsername(account, newUsername);
 
@@ -823,9 +905,9 @@ namespace BrockAllen.MembershipReboot
             Update(account);
         }
 
-        public virtual void ChangeEmailRequest(Guid accountID, string newEmail)
+        public virtual void ChangeEmailRequest(int accountId, string newEmail)
         {
-            Tracing.Information("[UserAccountService.ChangeEmailRequest] called: {0}, {1}", accountID, newEmail);
+            Tracing.Information("[UserAccountService.ChangeEmailRequest] called: {0}, {1}", accountId, newEmail);
 
             if (String.IsNullOrWhiteSpace(newEmail))
             {
@@ -833,8 +915,8 @@ namespace BrockAllen.MembershipReboot
                 throw new ValidationException("Invalid email.");
             }
 
-            var account = this.GetByID(accountID);
-            if (account == null) throw new ArgumentException("Invalid AccountID");
+            var account = this.GetById(accountId);
+            if (account == null) throw new ArgumentException("Invalid accountId");
 
             ValidateEmail(account, newEmail);
 
@@ -842,9 +924,9 @@ namespace BrockAllen.MembershipReboot
             Update(account);
         }
 
-        public virtual bool ChangeEmailFromKey(Guid accountID, string password, string key, string newEmail)
+        public virtual bool ChangeEmailFromKey(int accountId, string password, string key, string newEmail)
         {
-            Tracing.Information("[UserAccountService.ChangeEmailFromKey] called: {0}, {1}", accountID, newEmail);
+            Tracing.Information("[UserAccountService.ChangeEmailFromKey] called: {0}, {1}", accountId, newEmail);
 
             if (String.IsNullOrWhiteSpace(password))
             {
@@ -862,8 +944,8 @@ namespace BrockAllen.MembershipReboot
                 throw new ValidationException("Invalid email.");
             }
 
-            var account = this.GetByID(accountID);
-            if (account == null) throw new ArgumentException("Invalid AccountID");
+            var account = this.GetById(accountId);
+            if (account == null) throw new ArgumentException("Invalid accountId");
 
             if (!Authenticate(account, password, AuthenticationPurpose.VerifyPassword))
             {
@@ -887,20 +969,20 @@ namespace BrockAllen.MembershipReboot
             return result;
         }
 
-        public virtual void RemoveMobilePhone(Guid accountID)
+        public virtual void RemoveMobilePhone(int accountId)
         {
-            Tracing.Information("[UserAccountService.RemoveMobilePhone] called: {0}", accountID);
+            Tracing.Information("[UserAccountService.RemoveMobilePhone] called: {0}", accountId);
 
-            var account = this.GetByID(accountID);
-            if (account == null) throw new ArgumentException("Invalid AccountID");
+            var account = this.GetById(accountId);
+            if (account == null) throw new ArgumentException("Invalid accountId");
 
             account.ClearMobilePhoneNumber();
             Update(account);
         }
 
-        public virtual void ChangeMobilePhoneRequest(Guid accountID, string newMobilePhoneNumber)
+        public virtual void ChangeMobilePhoneRequest(int accountId, string newMobilePhoneNumber)
         {
-            Tracing.Information("[UserAccountService.ChangeMobilePhoneRequest] called: {0}, {1}", accountID, newMobilePhoneNumber);
+            Tracing.Information("[UserAccountService.ChangeMobilePhoneRequest] called: {0}, {1}", accountId, newMobilePhoneNumber);
 
             if (String.IsNullOrWhiteSpace(newMobilePhoneNumber))
             {
@@ -908,16 +990,16 @@ namespace BrockAllen.MembershipReboot
                 throw new ValidationException("Invalid Phone Number.");
             }
 
-            var account = this.GetByID(accountID);
-            if (account == null) throw new ArgumentException("Invalid AccountID");
+            var account = this.GetById(accountId);
+            if (account == null) throw new ArgumentException("Invalid accountId");
 
             account.RequestChangeMobilePhoneNumber(newMobilePhoneNumber);
             Update(account);
         }
 
-        public virtual bool ChangeMobilePhoneFromCode(Guid accountID, string code)
+        public virtual bool ChangeMobilePhoneFromCode(int accountId, string code)
         {
-            Tracing.Information("[UserAccountService.ChangeMobileFromCode] called: {0}", accountID);
+            Tracing.Information("[UserAccountService.ChangeMobileFromCode] called: {0}", accountId);
 
             if (String.IsNullOrWhiteSpace(code))
             {
@@ -925,8 +1007,8 @@ namespace BrockAllen.MembershipReboot
                 return false;
             }
 
-            var account = this.GetByID(accountID);
-            if (account == null) throw new ArgumentException("Invalid AccountID");
+            var account = this.GetById(accountId);
+            if (account == null) throw new ArgumentException("Invalid accountId");
 
             var result = account.ConfirmMobilePhoneNumberFromCode(code);
             Update(account);
@@ -936,10 +1018,10 @@ namespace BrockAllen.MembershipReboot
             return result;
         }
 
-        public virtual bool IsPasswordExpired(Guid accountID)
+        public virtual bool IsPasswordExpired(int accountId)
         {
-            var account = this.GetByID(accountID);
-            if (account == null) throw new ArgumentException("Invalid AccountID");
+            var account = this.GetById(accountId);
+            if (account == null) throw new ArgumentException("Invalid accountId");
 
             return IsPasswordExpired(account);
         }

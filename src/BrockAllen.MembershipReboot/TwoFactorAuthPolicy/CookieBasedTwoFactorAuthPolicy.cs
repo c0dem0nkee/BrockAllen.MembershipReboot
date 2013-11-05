@@ -9,7 +9,8 @@ namespace BrockAllen.MembershipReboot
 {
     public abstract class CookieBasedTwoFactorAuthPolicy :
         ITwoFactorAuthenticationPolicy,
-        IEventHandler<SuccessfulTwoFactorAuthCodeLoginEvent>
+        IEventHandler<SuccessfulTwoFactorAuthCodeLoginEvent>,
+        IEventHandler<SuccessfulTwoFactorLoginEvent>
     {
 
         protected abstract bool HasCookie(string name, string value);
@@ -17,7 +18,7 @@ namespace BrockAllen.MembershipReboot
 
         string GetCookieValue(UserAccount account)
         {
-            return CryptoHelper.Hash(account.ID.ToString(), account.HashedPassword);
+            return CryptoHelper.Hash(account.Id.ToString(), account.HashedPassword);
         }
 
         public bool RequestRequiresTwoFactorAuth(UserAccount account)
@@ -34,6 +35,12 @@ namespace BrockAllen.MembershipReboot
 
         public void Handle(SuccessfulTwoFactorAuthCodeLoginEvent evt)
         {
+            if (evt == null) throw new ArgumentNullException("evt");
+
+            IssueCookie(MembershipRebootConstants.AuthenticationService.CookieBasedTwoFactorAuthPolicyCookieName, GetCookieValue(evt.Account));
+        }
+
+        public void Handle(SuccessfulTwoFactorLoginEvent evt) {
             if (evt == null) throw new ArgumentNullException("evt");
 
             IssueCookie(MembershipRebootConstants.AuthenticationService.CookieBasedTwoFactorAuthPolicyCookieName, GetCookieValue(evt.Account));

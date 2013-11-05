@@ -21,7 +21,7 @@ namespace BrockAllen.MembershipReboot
 
         [Key]
         [Column(Order = 1)]
-        public virtual Guid UserAccountID { get; internal set; }
+        public virtual int UserAccountId { get; internal set; }
         [Key]
         [Column(Order=2)]
         [StringLength(50)]
@@ -29,12 +29,12 @@ namespace BrockAllen.MembershipReboot
         [Key]
         [Column(Order = 3)]
         [StringLength(100)]
-        public virtual string ProviderAccountID { get; internal set; }
+        public virtual string ProviderAccountId { get; internal set; }
 
         public virtual DateTime LastLogin { get; internal set; }
 
         [Required]
-        [ForeignKey("UserAccountID")]
+        [ForeignKey("UserAccountId")]
         public virtual UserAccount User { get; internal set; }
         
         public virtual ICollection<LinkedAccountClaim> Claims { get; internal set; }

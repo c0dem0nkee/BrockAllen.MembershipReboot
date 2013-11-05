@@ -14,14 +14,14 @@ namespace RolesAdmin.Controllers
         {
             get
             {
-                return Groups.Select(x=>new SelectListItem { Text=x.Name, Value=x.ID.ToString() });
+                return Groups.Select(x=>new SelectListItem { Text=x.Name, Value=x.Id.ToString() });
             }
         }
     }
 
     public class GroupViewModel
     {
-        public Guid ID { get; set; }
+        public int Id { get; set; }
         public string Name { get; set; }
         public IEnumerable<GroupViewModel> Children { get; set; }
     }
@@ -42,12 +42,12 @@ namespace RolesAdmin.Controllers
                 var kids = new List<GroupViewModel>();
                 foreach (var child in item.Children)
                 {
-                    var childGrp = groupSvc.Get(child.ChildGroupID);
-                    kids.Add(new GroupViewModel { ID = child.ChildGroupID, Name = childGrp.Name });
+                    var childGrp = groupSvc.Get(child.ChildGroupId);
+                    kids.Add(new GroupViewModel { Id = child.ChildGroupId, Name = childGrp.Name });
                 }
                 var gvm = new GroupViewModel
                 {
-                    ID = item.ID, Name = item.Name,
+                    Id = item.Id, Name = item.Name,
                     Children = kids
                 };
                 list.Add(gvm);
@@ -74,7 +74,7 @@ namespace RolesAdmin.Controllers
         }
 
         [HttpPost]
-        public ActionResult Delete(Guid id)
+        public ActionResult Delete(int id)
         {
             try
             {
@@ -89,7 +89,7 @@ namespace RolesAdmin.Controllers
         }
 
         [HttpPost]
-        public ActionResult ChangeName(Guid id, string name)
+        public ActionResult ChangeName(int id, string name)
         {
             try
             {
@@ -104,7 +104,7 @@ namespace RolesAdmin.Controllers
         }
 
         [HttpPost]
-        public ActionResult AddChild(Guid id, Guid child)
+        public ActionResult AddChild(int id, int child)
         {
             try
             {
@@ -118,7 +118,7 @@ namespace RolesAdmin.Controllers
             return Index();
         }
         [HttpPost]
-        public ActionResult RemoveChild(Guid id, Guid child)
+        public ActionResult RemoveChild(int id, int child)
         {
             try
             {

@@ -6,6 +6,7 @@
 using BrockAllen.MembershipReboot.Helpers;
 using System;
 using System.Linq;
+using System.Security.Cryptography;
 
 namespace BrockAllen.MembershipReboot
 {
@@ -47,6 +48,40 @@ namespace BrockAllen.MembershipReboot
             val = Math.Abs(val);
             
             return val.ToString("D" + digits);
+        }
+
+        internal static string GeneratePinPositions() {
+            var values = new int[2];
+
+            values[0] = GetRandomIntBetween(1,6);
+            values[1] = values[0];
+            
+            while (values[0] == values[1]) {
+                values[1] = GetRandomIntBetween(1,6);
+            }
+            
+            Array.Sort(values);
+
+            return string.Join(";", values); 
+        }
+
+        internal static int GetRandomIntBetween(int minValue, int maxValue) {
+            if (minValue > maxValue) throw new ArgumentOutOfRangeException("minValue");
+            if (minValue == maxValue) return minValue;
+          
+            var rng = new RNGCryptoServiceProvider();
+            var uint32Buffer = new byte[4];
+            long diff = (long)maxValue - minValue + 1;
+
+            while (true) {
+                rng.GetBytes(uint32Buffer);
+                uint rand = BitConverter.ToUInt32(uint32Buffer, 0);
+                const long max = (1 + (long)int.MaxValue);
+                long remainder = max % diff;
+                if (rand < max - remainder) {
+                    return (int)(minValue + (rand % diff));
+                }
+            }
         }
         
         internal static string GenerateSalt()

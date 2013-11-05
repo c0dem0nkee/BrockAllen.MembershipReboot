@@ -16,7 +16,7 @@
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <MvcBuildViews>false</MvcBuildViews>
     <UseIISExpress>true</UseIISExpress>
-    <IISExpressSSLPort>44302</IISExpressSSLPort>
+    <IISExpressSSLPort>44300</IISExpressSSLPort>
     <IISExpressAnonymousAuthentication />
     <IISExpressWindowsAuthentication />
     <IISExpressUseClassicPipelineMode />
@@ -60,6 +60,9 @@
     </Reference>
     <Reference Include="EntityFramework.SqlServerCompact">
       <HintPath>..\..\packages\EntityFramework.SqlServerCompact.6.0.1\lib\net45\EntityFramework.SqlServerCompact.dll</HintPath>
+    </Reference>
+    <Reference Include="Gma.QrCodeNet.Encoding">
+      <HintPath>..\..\packages\QrCode.Net.0.4.0.0\lib\net45\Gma.QrCodeNet.Encoding.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="Newtonsoft.Json, Version=4.5.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
@@ -207,6 +210,7 @@
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>
+    <Compile Include="Helpers\QrHelper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -245,12 +249,16 @@
     <Content Include="Areas\UserAccount\Views\ChangeMobile\Success.cshtml" />
     <Content Include="Areas\UserAccount\Views\ChangeMobile\Confirm.cshtml" />
     <Content Include="Areas\UserAccount\Views\TwoFactorAuth\Index.cshtml" />
-    <Content Include="Areas\UserAccount\Views\Login\TwoFactorAuthCodeLogin.cshtml" />
+    <Content Include="Areas\UserAccount\Views\Login\TwoFactorAuthenticatorLogin.cshtml" />
     <Content Include="Areas\UserAccount\Views\Login\CertificateLogin.cshtml" />
     <Content Include="Areas\UserAccount\Views\Certificate\Index.cshtml" />
     <Content Include="Areas\UserAccount\Views\LinkedAccount\Index.cshtml" />
     <Content Include="Areas\UserAccount\Views\LinkedAccount\SignInError.cshtml" />
     <Content Include="Areas\UserAccount\Views\LinkedAccount\Manage.cshtml" />
+    <Content Include="Areas\UserAccount\Views\Login\TwoFactorAuthCodeLogin.cshtml" />
+    <Content Include="Areas\UserAccount\Views\TwoFactorAuth\SetPin.cshtml" />
+    <Content Include="Areas\UserAccount\Views\TwoFactorAuth\AuthenticatorCode.cshtml" />
+    <Content Include="Areas\UserAccount\Views\Login\TwoFactorStaticPin.cshtml" />
     <None Include="Content\Site.less" />
     <Content Include="configuring_client_certs_readme.txt" />
     <Content Include="Content\Site.css">

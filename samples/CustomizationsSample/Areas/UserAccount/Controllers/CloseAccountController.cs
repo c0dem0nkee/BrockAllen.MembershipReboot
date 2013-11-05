@@ -25,7 +25,7 @@ namespace BrockAllen.MembershipReboot.Mvc.Areas.UserAccount.Controllers
             {
                 try
                 {
-                    this.userAccountService.DeleteAccount(User.GetUserID());
+                    this.userAccountService.DeleteAccount(User.GetUserId());
                     return RedirectToAction("Index", "Logout");
                 }
                 catch (ValidationException ex)

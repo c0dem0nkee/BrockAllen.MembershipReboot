@@ -18,7 +18,7 @@ namespace BrockAllen.MembershipReboot.Mvc.Areas.UserAccount.Controllers
 
         public ActionResult Index()
         {
-            var acct = userAccountService.GetByID(this.User.GetUserID());
+            var acct = userAccountService.GetById(this.User.GetUserId());
             return View(acct);
         }
 
@@ -26,7 +26,7 @@ namespace BrockAllen.MembershipReboot.Mvc.Areas.UserAccount.Controllers
         [ValidateAntiForgeryToken]
         public ActionResult Delete(string thumbprint)
         {
-            var acct = userAccountService.GetByID(this.User.GetUserID());
+            var acct = userAccountService.GetById(this.User.GetUserId());
             acct.RemoveCertificate(thumbprint);
             userAccountService.Update(acct);
             return RedirectToAction("Index");
@@ -36,7 +36,7 @@ namespace BrockAllen.MembershipReboot.Mvc.Areas.UserAccount.Controllers
         [ValidateAntiForgeryToken]
         public ActionResult Add()
         {
-            var acct = userAccountService.GetByID(this.User.GetUserID());
+            var acct = userAccountService.GetById(this.User.GetUserId());
 
             if (Request.Files.Count == 0)
             {

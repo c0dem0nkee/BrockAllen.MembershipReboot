@@ -60,7 +60,7 @@ namespace BrockAllen.MembershipReboot.Mvc.Areas.UserAccount.Controllers
         [Authorize]
         public ActionResult Manage()
         {
-            var linkedAccounts = this.userAccountService.GetByID(User.GetUserID()).LinkedAccounts.ToArray();
+            var linkedAccounts = this.userAccountService.GetById(User.GetUserId()).LinkedAccounts.ToArray();
             return View("Manage", linkedAccounts);
         }
         
@@ -71,7 +71,7 @@ namespace BrockAllen.MembershipReboot.Mvc.Areas.UserAccount.Controllers
         {
             try
             {
-                var account = this.userAccountService.GetByID(User.GetUserID());
+                var account = this.userAccountService.GetById(User.GetUserId());
                 account.RemoveLinkedAccount(provider, id);
                 this.userAccountService.Update(account);
                 return RedirectToAction("Manage");

@@ -22,16 +22,13 @@ namespace BrockAllen.MembershipReboot
             if (String.IsNullOrWhiteSpace(tenant)) throw new ValidationException("Tenant is required.");
             if (String.IsNullOrWhiteSpace(name)) throw new ValidationException("Name is required.");
 
-            if (this.ID != Guid.Empty) throw new Exception("Can't call Init if Group is already assigned an ID");
-
-            this.ID = Guid.NewGuid();
             this.Tenant = tenant;
             this.Name = name;
             this.Created = this.LastUpdated = UtcNow;
         }
 
         [Key]
-        public virtual Guid ID { get; internal set; }
+        public virtual int Id { get; internal set; }
 
         [StringLength(50)]
         [Required]
@@ -54,22 +51,22 @@ namespace BrockAllen.MembershipReboot
             }
         }
 
-        internal void AddChild(Guid childGroupID)
+        internal void AddChild(int childGroupId)
         {
-            if (this.ID == childGroupID) return;
+            if (this.Id == childGroupId) return;
 
-            var child = this.Children.SingleOrDefault(x => x.ChildGroupID == childGroupID);
+            var child = this.Children.SingleOrDefault(x => x.ChildGroupId == childGroupId);
             if (child == null)
             {
-                this.Children.Add(new GroupChild { GroupID = this.ID, ChildGroupID = childGroupID });
+                this.Children.Add(new GroupChild { GroupId = this.Id, ChildGroupId = childGroupId });
             }
         }
         
-        internal void RemoveChild(Guid childGroupID)
+        internal void RemoveChild(int childGroupId)
         {
-            if (this.ID == childGroupID) return;
+            if (this.Id == childGroupId) return;
 
-            var child = this.Children.SingleOrDefault(x => x.ChildGroupID == childGroupID);
+            var child = this.Children.SingleOrDefault(x => x.ChildGroupId == childGroupId);
             if (child != null)
             {
                 this.Children.Remove(child);

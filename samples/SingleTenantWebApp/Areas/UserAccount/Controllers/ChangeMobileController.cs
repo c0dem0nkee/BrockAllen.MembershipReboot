@@ -18,7 +18,7 @@ namespace BrockAllen.MembershipReboot.Mvc.Areas.UserAccount.Controllers
 
         public ActionResult Index()
         {
-            var acct = this.authSvc.UserAccountService.GetByID(User.GetUserID());
+            var acct = this.authSvc.UserAccountService.GetById(User.GetUserId());
             return View("Index", new ChangeMobileRequestInputModel {Current = acct.MobilePhoneNumber });
         }
 
@@ -32,7 +32,7 @@ namespace BrockAllen.MembershipReboot.Mvc.Areas.UserAccount.Controllers
                 {
                     try
                     {
-                        this.userAccountService.ChangeMobilePhoneRequest(User.GetUserID(), model.NewMobilePhone);
+                        this.userAccountService.ChangeMobilePhoneRequest(User.GetUserId(), model.NewMobilePhone);
                         return View("ChangeRequestSuccess", (object)model.NewMobilePhone);
                     }
                     catch (ValidationException ex)
@@ -44,11 +44,11 @@ namespace BrockAllen.MembershipReboot.Mvc.Areas.UserAccount.Controllers
 
             if (button == "remove")
             {
-                this.userAccountService.RemoveMobilePhone(User.GetUserID());
+                this.userAccountService.RemoveMobilePhone(User.GetUserId());
                 return View("Success");
             }
 
-            var acct = this.authSvc.UserAccountService.GetByID(User.GetUserID());
+            var acct = this.authSvc.UserAccountService.GetById(User.GetUserId());
             model.Current = acct.MobilePhoneNumber;
             return View("Index", model);
         }
@@ -61,11 +61,11 @@ namespace BrockAllen.MembershipReboot.Mvc.Areas.UserAccount.Controllers
             {
                 try
                 {
-                    if (this.userAccountService.ChangeMobilePhoneFromCode(this.User.GetUserID(), model.Code))
+                    if (this.userAccountService.ChangeMobilePhoneFromCode(this.User.GetUserId(), model.Code))
                     {
                         // since the mobile had changed, reissue the 
                         // cookie with the updated claims
-                        authSvc.SignIn(User.GetUserID());
+                        authSvc.SignIn(User.GetUserId());
 
                         return View("Success");
                     }

@@ -1,4 +1,6 @@
-﻿@model BrockAllen.MembershipReboot.UserAccount
+﻿@using BrockAllen.MembershipReboot.Mvc.Helpers
+
+@model BrockAllen.MembershipReboot.UserAccount
 
 @{
     ViewBag.Title = "Two Factor Auth";
@@ -45,6 +47,18 @@
             <input id="cert" type="radio" name="mode" value="2" 
                 checked="@(Model.AccountTwoFactorAuthMode == BrockAllen.MembershipReboot.TwoFactorAuthMode.Certificate)"/>
         </p>
+        <p>
+            <label for="cert">Google Authenticator</label>
+            <input id="cert" type="radio" name="mode" value="3"
+                   checked="@(Model.AccountTwoFactorAuthMode == BrockAllen.MembershipReboot.TwoFactorAuthMode.Authenticator)" />
+        </p>
+
+        <p>
+            <label for="cert">Static Pin</label>
+            <input id="cert" type="radio" name="mode" value="4"
+                   checked="@(Model.AccountTwoFactorAuthMode == BrockAllen.MembershipReboot.TwoFactorAuthMode.StaticPin)" />
+        </p>
+      
         <p>
             <button>Submit</button></p>
     </fieldset>

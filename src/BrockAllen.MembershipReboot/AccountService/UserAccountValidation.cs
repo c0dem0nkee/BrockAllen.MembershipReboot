@@ -72,5 +72,44 @@ namespace BrockAllen.MembershipReboot
             }
             return null;
         });
+
+        public static readonly IValidator PinMustBeNumeric =
+            new DelegateValidator((service, account, value) => {
+            // Use LastLogin null-check to see if it's a new account
+            // we don't want to run this logic if it's a new account
+            int result;
+            if (!int.TryParse(value, out result)) {
+                Tracing.Verbose("[UserAccountValidation.PinMustBeNumeric] validation failed: {0}, {1}", account.Tenant, account.Username);
+
+                return new ValidationResult("The new pin must be numeric.");
+            }
+            return null;
+        });
+
+        public static readonly IValidator PinMustBeCorrectLength =
+            new DelegateValidator((service, account, value) => {
+            // Use LastLogin null-check to see if it's a new account
+            // we don't want to run this logic if it's a new account
+            int result;
+            if (value.Length != MembershipRebootConstants.UserAccount.StaticPinLength) {
+                Tracing.Verbose("[UserAccountValidation.PinMustBeCorrectLength] validation failed: {0}, {1}", account.Tenant, account.Username);
+
+                return new ValidationResult(string.Format("The new pin must be {0} characters in length.", MembershipRebootConstants.UserAccount.StaticPinLength));
+            }
+            return null;
+        });
+
+        public static readonly IValidator PinMustBeDifferentThanCurrent =
+            new DelegateValidator((service, account, value) => {
+                // Use LastLogin null-check to see if it's a new account
+                // we don't want to run this logic if it's a new account
+                int result;
+                if (account.LastLogin != null && account.TwoFactorStaticPin == value) {
+                    Tracing.Verbose("[UserAccountValidation.PinMustBeCorrectLength] validation failed: {0}, {1}", account.Tenant, account.Username);
+
+                    return new ValidationResult("The new pin must be different from the old pin");
+                }
+                return null;
+            });
     }
 }

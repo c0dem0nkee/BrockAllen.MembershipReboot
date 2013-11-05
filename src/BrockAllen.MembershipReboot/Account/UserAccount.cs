@@ -22,8 +22,8 @@ namespace BrockAllen.MembershipReboot
         }
 
         [Key]
-        public virtual Guid ID { get; internal set; }
-
+        public virtual int Id { get; internal set; }
+    
         [StringLength(50)]
         [Required]
         public virtual string Tenant { get; internal set; }
@@ -43,6 +43,11 @@ namespace BrockAllen.MembershipReboot
         public virtual string MobileCode { get; internal set; }
         public virtual DateTime? MobileCodeSent { get; internal set; }
         public virtual string MobilePhoneNumber { get; internal set; }
+
+        public virtual string TwoFactorAuthSecret { get; internal set; }
+        public virtual string TwoFactorStaticPin { get; internal set; }
+        public virtual string TwoFactorPinPositions { get; internal set; }
+        public virtual DateTime? TwoFactorPinPositionsSet { get; internal set; }
 
         public virtual TwoFactorAuthMode AccountTwoFactorAuthMode { get; internal set; }
         public virtual TwoFactorAuthMode CurrentTwoFactorAuthStatus { get; internal set; }
@@ -112,13 +117,6 @@ namespace BrockAllen.MembershipReboot
                 throw new ValidationException("Email is required.");
             }
 
-            if (this.ID != Guid.Empty)
-            {
-                Tracing.Error("[UserAccount.Init] failed -- ID already assigned");
-                throw new Exception("Can't call Init if UserAccount is already assigned an ID");
-            }
-
-            this.ID = Guid.NewGuid();
             this.Tenant = tenant;
             this.Username = username;
             this.Email = email;
@@ -128,6 +126,8 @@ namespace BrockAllen.MembershipReboot
             this.PasswordChanged = this.Created;
             this.IsAccountVerified = false;
             this.IsLoginAllowed = false;
+            this.TwoFactorAuthSecret = Base32Encoder.ToBase32String(Authenticator.GenerateSecretKey());
+            this.TwoFactorStaticPin = CryptoHelper.GenerateNumericCode(MembershipRebootConstants.UserAccount.StaticPinLength);
             this.AccountTwoFactorAuthMode = TwoFactorAuthMode.None;
             this.CurrentTwoFactorAuthStatus = TwoFactorAuthMode.None;
             this.SetVerificationKey(VerificationKeyPurpose.VerifyAccount);
@@ -171,7 +171,7 @@ namespace BrockAllen.MembershipReboot
 
         protected internal virtual bool VerifyAccount(string key)
         {
-            Tracing.Information("[UserAccount.VerifyAccount] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.VerifyAccount] called for accountID: {0}", this.Id);
 
             if (String.IsNullOrWhiteSpace(key))
             {
@@ -215,7 +215,7 @@ namespace BrockAllen.MembershipReboot
 
         protected internal virtual bool CancelNewAccount(string key)
         {
-            Tracing.Information("[UserAccount.CancelNewAccount] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.CancelNewAccount] called for accountID: {0}", this.Id);
 
             if (this.IsAccountVerified)
             {
@@ -250,7 +250,7 @@ namespace BrockAllen.MembershipReboot
 
         protected internal virtual void SetPassword(string password)
         {
-            Tracing.Information("[UserAccount.SetPassword] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.SetPassword] called for accountID: {0}", this.Id);
 
             if (String.IsNullOrWhiteSpace(password))
             {
@@ -267,9 +267,29 @@ namespace BrockAllen.MembershipReboot
             this.AddEvent(new PasswordChangedEvent { Account = this, NewPassword = password });
         }
 
+        protected internal virtual void SetStaticPin(string pin) {
+            Tracing.Information("[UserAccount.SetStaticPin] called for accountID: {0}", this.Id);
+
+            if (String.IsNullOrWhiteSpace(pin)) {
+                Tracing.Error("[UserAccount.SetStaticPin] failed -- no pin provided");
+                throw new ValidationException("Invalid pin.");
+            }
+
+            if (pin.Length != MembershipRebootConstants.UserAccount.StaticPinLength) {
+                Tracing.Error("[UserAccount.SetStaticPin] failed -- pin not required length");
+                throw new ValidationException("Invalid pin length.");
+            }
+
+            Tracing.Verbose("[UserAccount.SetStaticPin] setting new static pin");
+
+            this.TwoFactorStaticPin = pin;
+    
+            this.AddEvent(new StaticPinChangedEvent { Account = this, NewPin = pin });
+        }
+
         protected internal virtual void ResetPassword()
         {
-            Tracing.Information("[UserAccount.ResetPassword] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.ResetPassword] called for accountID: {0}", this.Id);
 
             if (!this.IsAccountVerified)
             {
@@ -303,7 +323,7 @@ namespace BrockAllen.MembershipReboot
 
         protected internal virtual bool ChangePasswordFromResetKey(string key, string newPassword)
         {
-            Tracing.Information("[UserAccount.ChangePasswordFromResetKey] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.ChangePasswordFromResetKey] called for accountID: {0}", this.Id);
 
             if (String.IsNullOrWhiteSpace(key))
             {
@@ -347,7 +367,7 @@ namespace BrockAllen.MembershipReboot
 
         protected internal virtual bool Authenticate(string password, int failedLoginCount, TimeSpan lockoutDuration)
         {
-            Tracing.Information("[UserAccount.Authenticate] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.Authenticate] called for accountID: {0}", this.Id);
 
             if (failedLoginCount <= 0) throw new ArgumentException("failedLoginCount");
 
@@ -425,7 +445,7 @@ namespace BrockAllen.MembershipReboot
 
         protected internal virtual bool Authenticate(X509Certificate2 certificate)
         {
-            Tracing.Information("[UserAccount.Authenticate] certificate auth called for account ID: {0}", this.ID);
+            Tracing.Information("[UserAccount.Authenticate] certificate auth called for account ID: {0}", this.Id);
             
             certificate.Validate();
 
@@ -468,6 +488,16 @@ namespace BrockAllen.MembershipReboot
             this.MobileCodeSent = null;
         }
 
+        void SetPinPositions() {
+            this.TwoFactorPinPositions = CryptoHelper.GeneratePinPositions();
+            this.TwoFactorPinPositionsSet = UtcNow;
+        }
+
+        void ClearPinPositions() {
+            this.TwoFactorPinPositions = null;
+            this.TwoFactorPinPositionsSet = null;
+        }
+
         protected virtual bool IsMobileCodeStale
         {
             get
@@ -486,9 +516,23 @@ namespace BrockAllen.MembershipReboot
             }
         }
 
+        protected virtual bool IsPinPositionsStale {
+            get {
+                if (this.TwoFactorPinPositionsSet == null || String.IsNullOrWhiteSpace(this.TwoFactorPinPositions)) {
+                    return true;
+                }
+
+                if (this.TwoFactorPinPositionsSet < UtcNow.AddMinutes(-MembershipRebootConstants.UserAccount.PinPositionsStaleDurationMinutes)) {
+                    return true;
+                }
+
+                return false;
+            }
+        }
+
         protected internal virtual void RequestChangeMobilePhoneNumber(string newMobilePhoneNumber)
         {
-            Tracing.Information("[UserAccount.RequestChangeMobilePhoneNumber] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.RequestChangeMobilePhoneNumber] called for accountID: {0}", this.Id);
 
             if (String.IsNullOrWhiteSpace(newMobilePhoneNumber))
             {
@@ -518,7 +562,7 @@ namespace BrockAllen.MembershipReboot
 
         protected internal virtual bool ConfirmMobilePhoneNumberFromCode(string code)
         {
-            Tracing.Information("[UserAccount.ConfirmMobilePhoneNumberFromCode] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.ConfirmMobilePhoneNumberFromCode] called for accountID: {0}", this.Id);
             
             if (String.IsNullOrWhiteSpace(code))
             {
@@ -558,7 +602,7 @@ namespace BrockAllen.MembershipReboot
 
         protected internal virtual void ClearMobilePhoneNumber()
         {
-            Tracing.Information("[UserAccount.ClearMobilePhoneNumber] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.ClearMobilePhoneNumber] called for accountID: {0}", this.Id);
 
             if (this.AccountTwoFactorAuthMode == TwoFactorAuthMode.Mobile)
             {
@@ -582,7 +626,7 @@ namespace BrockAllen.MembershipReboot
 
         protected internal virtual void ConfigureTwoFactorAuthentication(TwoFactorAuthMode mode)
         {
-            Tracing.Information("[UserAccount.ConfigureTwoFactorAuthentication] called for accountID: {0}, mode: {1}", this.ID, mode);
+            Tracing.Information("[UserAccount.ConfigureTwoFactorAuthentication] called for accountID: {0}, mode: {1}", this.Id, mode);
 
             if (this.AccountTwoFactorAuthMode == mode)
             {
@@ -639,7 +683,7 @@ namespace BrockAllen.MembershipReboot
 
         protected internal virtual bool RequestTwoFactorAuthCertificate()
         {
-            Tracing.Information("[UserAccount.RequestTwoFactorAuthCertificate] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.RequestTwoFactorAuthCertificate] called for accountID: {0}", this.Id);
 
             if (!this.IsAccountVerified)
             {
@@ -688,9 +732,25 @@ namespace BrockAllen.MembershipReboot
             }
         }
 
+        public bool RequiresAuthenticatorToSignIn {
+            get {
+                return
+                    this.AccountTwoFactorAuthMode == TwoFactorAuthMode.Authenticator &&
+                    this.CurrentTwoFactorAuthStatus == TwoFactorAuthMode.Authenticator;
+            }
+        }
+
+        public bool RequiresStaticPinToSignIn {
+            get {
+                return
+                    this.AccountTwoFactorAuthMode == TwoFactorAuthMode.StaticPin &&
+                    this.CurrentTwoFactorAuthStatus == TwoFactorAuthMode.StaticPin;
+            }
+        }
+        
         protected internal virtual bool RequestTwoFactorAuthCode()
         {
-            Tracing.Information("[UserAccount.RequestTwoFactorAuthCode] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.RequestTwoFactorAuthCode] called for accountID: {0}", this.Id);
 
             if (!this.IsAccountVerified)
             {
@@ -738,9 +798,74 @@ namespace BrockAllen.MembershipReboot
             return true;
         }
 
+        protected internal virtual bool RequestTwoFactorAuthenticator() {
+            Tracing.Information("[UserAccount.RequestTwoFactorAuthenticator] called for accountID: {0}", this.Id);
+
+            if (!this.IsAccountVerified) {
+                Tracing.Error("[UserAccount.RequestTwoFactorAuthenticator] failed -- account not verified");
+                return false;
+            }
+
+            if (this.IsAccountClosed) {
+                Tracing.Error("[UserAccount.RequestTwoFactorAuthenticator] failed -- account closed");
+                return false;
+            }
+
+            if (!this.IsLoginAllowed) {
+                Tracing.Error("[UserAccount.RequestTwoFactorAuthenticator] failed -- login not allowed");
+                return false;
+            }
+
+            if (this.AccountTwoFactorAuthMode != TwoFactorAuthMode.Authenticator) {
+                Tracing.Error("[UserAccount.RequestTwoFactorAuthenticator] failed -- current auth mode is not authenticator");
+                return false;
+            }
+
+            Tracing.Verbose("[UserAccount.RequestTwoFactorAuthenticator] success");
+
+            this.CurrentTwoFactorAuthStatus = TwoFactorAuthMode.Authenticator;
+
+            return true;
+        }
+
+        protected internal virtual bool RequestTwoFactorStaticPin() {
+            Tracing.Information("[UserAccount.RequestTwoFactorStaticPin] called for accountID: {0}", this.Id);
+
+            if (!this.IsAccountVerified) {
+                Tracing.Error("[UserAccount.RequestTwoFactorStaticPin] failed -- account not verified");
+                return false;
+            }
+
+            if (this.IsAccountClosed) {
+                Tracing.Error("[UserAccount.RequestTwoFactorStaticPin] failed -- account closed");
+                return false;
+            }
+
+            if (!this.IsLoginAllowed) {
+                Tracing.Error("[UserAccount.RequestTwoFactorStaticPin] failed -- login not allowed");
+                return false;
+            }
+
+            if (this.AccountTwoFactorAuthMode != TwoFactorAuthMode.StaticPin) {
+                Tracing.Error("[UserAccount.RequestTwoFactorStaticPin] failed -- current auth mode is not static pin");
+                return false;
+            }
+
+            if (this.IsPinPositionsStale) {
+                Tracing.Verbose("[UserAccount.RequestTwoFactorStaticPin] new pin positions set");
+                this.SetPinPositions();
+            }
+
+            Tracing.Verbose("[UserAccount.RequestTwoFactorStaticPin] success");
+
+            this.CurrentTwoFactorAuthStatus = TwoFactorAuthMode.StaticPin;
+           
+            return true;
+        }
+
         protected internal virtual bool VerifyTwoFactorAuthCode(string code)
         {
-            Tracing.Information("[UserAccount.VerifyTwoFactorAuthCode] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.VerifyTwoFactorAuthCode] called for accountID: {0}", this.Id);
 
             if (code == null)
             {
@@ -801,16 +926,123 @@ namespace BrockAllen.MembershipReboot
             return true;
         }
 
+        protected internal virtual bool VerifyTwoFactorAuthenticatorCode(string code) {
+            Tracing.Information("[UserAccount.VerifyTwoFactorAuthenticatorCode] called for accountID: {0}", this.Id);
+
+            if (code == null) {
+                Tracing.Error("[UserAccount.VerifyTwoFactorAuthenticatorCode] failed - null code");
+                return false;
+            }
+
+            if (!this.IsAccountVerified) {
+                Tracing.Error("[UserAccount.VerifyTwoFactorAuthenticatorCode] failed -- account not verified");
+                return false;
+            }
+
+            if (this.IsAccountClosed) {
+                Tracing.Error("[UserAccount.VerifyTwoFactorAuthenticatorCode] failed -- account closed");
+                return false;
+            }
+
+            if (!this.IsLoginAllowed) {
+                Tracing.Error("[UserAccount.VerifyTwoFactorAuthenticatorCode] failed -- login not allowed");
+                return false;
+            }
+
+            if (this.AccountTwoFactorAuthMode != TwoFactorAuthMode.Authenticator) {
+                Tracing.Error("[UserAccount.VerifyTwoFactorAuthenticatorCode] failed -- two factor auth mode not google authenticator");
+                return false;
+            }
+
+            if (this.CurrentTwoFactorAuthStatus != TwoFactorAuthMode.Authenticator) {
+                Tracing.Error("[UserAccount.VerifyTwoFactorAuthenticatorCode] failed -- current auth status not google authenticator");
+                return false;
+            }
+
+
+            var authenticator = new Authenticator();
+            if (code != authenticator.GeneratePin(Base32Encoder.FromBase32String(this.TwoFactorAuthSecret))) {
+                Tracing.Error("[UserAccount.VerifyTwoFactorAuthenticatorCode] failed -- codes don't match");
+                return false;
+            }
+
+            Tracing.Verbose("[UserAccount.VerifyTwoFactorAuthenticatorCode] success");
+
+            this.LastLogin = UtcNow;
+            this.CurrentTwoFactorAuthStatus = TwoFactorAuthMode.None;
+            
+            this.AddEvent(new SuccessfulTwoFactorLoginEvent { Account = this });
+
+            return true;
+        }
+
+        protected internal virtual bool VerifyTwoFactorStaticPin(string firstCharacter, string secondCharacter) {
+            Tracing.Information("[UserAccount.VerifyTwoFactorStaticPin] called for accountID: {0}", this.Id);
+
+            if (firstCharacter == null || secondCharacter == null) {
+                Tracing.Error("[UserAccount.VerifyTwoFactorStaticPin] failed - null character");
+                return false;
+            }
+
+            if (!this.IsAccountVerified) {
+                Tracing.Error("[UserAccount.VerifyTwoFactorStaticPin] failed -- account not verified");
+                return false;
+            }
+
+            if (this.IsAccountClosed) {
+                Tracing.Error("[UserAccount.VerifyTwoFactorStaticPin] failed -- account closed");
+                return false;
+            }
+
+            if (!this.IsLoginAllowed) {
+                Tracing.Error("[UserAccount.VerifyTwoFactorStaticPin] failed -- login not allowed");
+                return false;
+            }
+
+            if (this.AccountTwoFactorAuthMode != TwoFactorAuthMode.StaticPin) {
+                Tracing.Error("[UserAccount.VerifyTwoFactorStaticPin] failed -- two factor auth mode not static pin");
+                return false;
+            }
+
+            if (this.CurrentTwoFactorAuthStatus != TwoFactorAuthMode.StaticPin) {
+                Tracing.Error("[UserAccount.VerifyTwoFactorStaticPin] failed -- current auth status not static pin");
+                return false;
+            }
+
+            if (IsPinPositionsStale) {
+                Tracing.Error("[UserAccount.VerifyTwoFactorStaticPin] failed -- pin positions stale");
+                return false;
+            }
+
+            var positions = this.TwoFactorPinPositions.Split(';');
+            if (firstCharacter != this.TwoFactorStaticPin.Substring(int.Parse(positions[0])-1, 1) || 
+                secondCharacter != this.TwoFactorStaticPin.Substring(int.Parse(positions[1])-1, 1)) {
+                Tracing.Error("[UserAccount.VerifyTwoFactorStaticPin] failed -- static pin values don't match");
+                return false;
+            }
+
+            Tracing.Verbose("[UserAccount.VerifyTwoFactorStaticPin] success");
+
+            this.LastLogin = UtcNow;
+            this.CurrentTwoFactorAuthStatus = TwoFactorAuthMode.None;
+            this.ClearMobileAuthCode();
+            this.ClearPinPositions();
+
+            this.AddEvent(new SuccessfulTwoFactorLoginEvent { Account = this });
+
+            return true;
+        }
+
         protected internal virtual void SendAccountNameReminder()
         {
-            Tracing.Information("[UserAccount.SendAccountNameReminder] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.SendAccountNameReminder] called for accountID: {0}", this.Id);
 
             this.AddEvent(new UsernameReminderRequestedEvent { Account = this });
         }
 
         protected internal virtual void ChangeUsername(string newUsername)
         {
-            Tracing.Information("[UserAccount.ChangeUsername] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.ChangeUsername] called for accountID: {0}", this.Id);
 
             if (String.IsNullOrWhiteSpace(newUsername))
             {
@@ -827,7 +1059,7 @@ namespace BrockAllen.MembershipReboot
 
         protected internal virtual void ChangeEmailRequest(string newEmail)
         {
-            Tracing.Information("[UserAccount.ChangeEmailRequest] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.ChangeEmailRequest] called for accountID: {0}", this.Id);
 
             if (String.IsNullOrWhiteSpace(newEmail))
             {
@@ -863,7 +1095,7 @@ namespace BrockAllen.MembershipReboot
 
         protected internal virtual bool ChangeEmailFromKey(string key, string newEmail)
         {
-            Tracing.Information("[UserAccount.ChangeEmailFromKey] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.ChangeEmailFromKey] called for accountID: {0}", this.Id);
 
             if (String.IsNullOrWhiteSpace(key))
             {
@@ -916,7 +1148,7 @@ namespace BrockAllen.MembershipReboot
 
         protected internal virtual void CloseAccount()
         {
-            Tracing.Information("[UserAccount.CloseAccount] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.CloseAccount] called for accountID: {0}", this.Id);
 
             this.ClearVerificationKey();
             this.ClearMobileAuthCode();
@@ -989,7 +1221,7 @@ namespace BrockAllen.MembershipReboot
 
         public virtual void AddClaim(string type, string value)
         {
-            Tracing.Information("[UserAccount.AddClaim] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.AddClaim] called for accountID: {0}", this.Id);
 
             if (String.IsNullOrWhiteSpace(type))
             {
@@ -1016,7 +1248,7 @@ namespace BrockAllen.MembershipReboot
 
         public virtual void RemoveClaim(string type)
         {
-            Tracing.Information("[UserAccount.RemoveClaim] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.RemoveClaim] called for accountID: {0}", this.Id);
 
             if (String.IsNullOrWhiteSpace(type))
             {
@@ -1037,7 +1269,7 @@ namespace BrockAllen.MembershipReboot
 
         public virtual void RemoveClaim(string type, string value)
         {
-            Tracing.Information("[UserAccount.RemoveClaim] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.RemoveClaim] called for accountID: {0}", this.Id);
 
             if (String.IsNullOrWhiteSpace(type))
             {
@@ -1063,12 +1295,12 @@ namespace BrockAllen.MembershipReboot
 
         public virtual LinkedAccount GetLinkedAccount(string provider, string id)
         {
-            return this.LinkedAccounts.Where(x => x.ProviderName == provider && x.ProviderAccountID == id).SingleOrDefault();
+            return this.LinkedAccounts.Where(x => x.ProviderName == provider && x.ProviderAccountId == id).SingleOrDefault();
         }
 
         public virtual void AddOrUpdateLinkedAccount(string provider, string id, IEnumerable<Claim> claims = null)
         {
-            Tracing.Information("[UserAccount.AddOrUpdateLinkedAccount] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.AddOrUpdateLinkedAccount] called for accountID: {0}", this.Id);
 
             if (String.IsNullOrWhiteSpace(provider))
             {
@@ -1087,7 +1319,7 @@ namespace BrockAllen.MembershipReboot
                 linked = new LinkedAccount
                 {
                     ProviderName = provider,
-                    ProviderAccountID = id
+                    ProviderAccountId = id
                 };
                 this.LinkedAccounts.Add(linked);
                 this.AddEvent(new LinkedAccountAddedEvent { Account = this, LinkedAccount = linked });
@@ -1099,7 +1331,7 @@ namespace BrockAllen.MembershipReboot
 
         protected virtual void UpdateLinkedAccount(LinkedAccount account, IEnumerable<Claim> claims = null)
         {
-            Tracing.Information("[UserAccount.UpdateLinkedAccount] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.UpdateLinkedAccount] called for accountID: {0}", this.Id);
 
             if (account == null)
             {
@@ -1113,7 +1345,7 @@ namespace BrockAllen.MembershipReboot
 
         public virtual void RemoveLinkedAccount(string provider)
         {
-            Tracing.Information("[UserAccount.RemoveLinkedAccount] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.RemoveLinkedAccount] called for accountID: {0}", this.Id);
 
             var linked = this.LinkedAccounts.Where(x => x.ProviderName == provider);
             foreach(var item in linked)
@@ -1125,7 +1357,7 @@ namespace BrockAllen.MembershipReboot
 
         public virtual void RemoveLinkedAccount(string provider, string id)
         {
-            Tracing.Information("[UserAccount.RemoveLinkedAccount] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.RemoveLinkedAccount] called for accountID: {0}", this.Id);
 
             var linked = GetLinkedAccount(provider, id);
             if (linked != null)
@@ -1137,7 +1369,7 @@ namespace BrockAllen.MembershipReboot
 
         public virtual void AddCertificate(X509Certificate2 certificate)
         {
-            Tracing.Information("[UserAccount.AddCertificate] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.AddCertificate] called for accountID: {0}", this.Id);
 
             certificate.Validate();
             RemoveCertificate(certificate);
@@ -1145,7 +1377,7 @@ namespace BrockAllen.MembershipReboot
         }
         public virtual void AddCertificate(string thumbprint, string subject)
         {
-            Tracing.Information("[UserAccount.AddCertificate] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.AddCertificate] called for accountID: {0}", this.Id);
 
             if (String.IsNullOrWhiteSpace(thumbprint))
             {
@@ -1166,7 +1398,7 @@ namespace BrockAllen.MembershipReboot
 
         public virtual void RemoveCertificate(X509Certificate2 certificate)
         {
-            Tracing.Information("[UserAccount.RemoveCertificate] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.RemoveCertificate] called for accountID: {0}", this.Id);
 
             if (certificate == null)
             {
@@ -1183,7 +1415,7 @@ namespace BrockAllen.MembershipReboot
         }
         public virtual void RemoveCertificate(string thumbprint)
         {
-            Tracing.Information("[UserAccount.RemoveCertificate] called for accountID: {0}", this.ID);
+            Tracing.Information("[UserAccount.RemoveCertificate] called for accountID: {0}", this.Id);
 
             if (String.IsNullOrWhiteSpace(thumbprint))
             {

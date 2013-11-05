@@ -18,6 +18,8 @@ namespace BrockAllen.MembershipReboot
             internal const int VerificationKeyStaleDurationDays = 1;
             internal const int MobileCodeLength = 6;
             internal const int MobileCodeStaleDurationMinutes = 10;
+            internal const int StaticPinLength = 6;
+            internal const int PinPositionsStaleDurationMinutes = 5;
         }
 
         public class AuthenticationService

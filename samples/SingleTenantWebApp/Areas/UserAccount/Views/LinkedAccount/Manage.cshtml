@@ -21,10 +21,10 @@
                 {
                     @Html.AntiForgeryToken()
                     <input type="hidden" name="provider" value="@account.ProviderName" />
-                    <input type="hidden" name="id" value="@account.ProviderAccountID" />
+                    <input type="hidden" name="id" value="@account.ProviderAccountId" />
                     <button>remove</button>
                 }
-                @account.ProviderName (@account.ProviderAccountID)
+                @account.ProviderName (@account.ProviderAccountId)
             </li>
         }
     </ul>

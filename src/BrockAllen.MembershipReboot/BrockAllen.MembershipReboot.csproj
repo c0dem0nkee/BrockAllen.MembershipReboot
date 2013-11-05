@@ -52,6 +52,8 @@
     <Compile Include="AccountService\UserAccountValidator.cs" />
     <Compile Include="Authentication\AuthenticationService.cs" />
     <Compile Include="Configuration\AspNetApplicationInformation.cs" />
+    <Compile Include="Crypto\Base32Encoder.cs" />
+    <Compile Include="Crypto\Authenticator.cs" />
     <Compile Include="Extensions\ConfigurationExtensions.cs" />
     <Compile Include="Extensions\X509Certificate2Extensions.cs" />
     <Compile Include="Account\TwoFactorAuthMode.cs" />

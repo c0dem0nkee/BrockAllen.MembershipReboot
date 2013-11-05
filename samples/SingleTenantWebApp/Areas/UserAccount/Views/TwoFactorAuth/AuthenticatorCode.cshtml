@@ -1,0 +1,19 @@
+﻿@using BrockAllen.MembershipReboot.Mvc.Helpers
+
+@model BrockAllen.MembershipReboot.UserAccount
+
+@{
+    ViewBag.Title = "Two Factor Auth";
+}
+
+<h2>@ViewBag.Title</h2>
+
+
+    <p>
+        Please scan this QrCode into your Authenticator app to be able to generate a code
+    </p>
+    <p>
+        @Html.QRCode(string.Format("otpauth://totp/{0}?secret={1}", "MembershipReboot", Model.TwoFactorAuthSecret))
+                
+    </p>
+

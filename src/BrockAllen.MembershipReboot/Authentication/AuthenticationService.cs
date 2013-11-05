@@ -25,9 +25,9 @@ namespace BrockAllen.MembershipReboot
         protected abstract void IssueToken(ClaimsPrincipal principal, TimeSpan? tokenLifetime = null, bool? persistentCookie = null);
         protected abstract void RevokeToken();
 
-        public virtual void SignIn(Guid userID)
+        public virtual void SignIn(int userId)
         {
-            var account = this.UserAccountService.GetByID(userID);
+            var account = this.UserAccountService.GetById(userId);
             if (account == null) throw new ArgumentException("Invalid userID");
 
             SignIn(account, AuthenticationMethods.Password);
@@ -55,7 +55,7 @@ namespace BrockAllen.MembershipReboot
 
             if (account.RequiresTwoFactorAuthToSignIn)
             {
-                Tracing.Verbose("[AuthenticationService.SignIn] detected account requires two factor to sign in: {0}", account.ID);
+                Tracing.Verbose("[AuthenticationService.SignIn] detected account requires two factor to sign in: {0}", account.Id);
                 IssuePartialSignInTokenForTwoFactorAuth(account, method);
                 return;
             }
@@ -98,7 +98,7 @@ namespace BrockAllen.MembershipReboot
             var claims = new List<Claim>();
             claims.Add(new Claim(ClaimTypes.AuthenticationMethod, method));
             claims.Add(new Claim(ClaimTypes.AuthenticationInstant, DateTime.UtcNow.ToString("s")));
-            claims.Add(new Claim(ClaimTypes.NameIdentifier, account.ID.ToString("D")));
+            claims.Add(new Claim(ClaimTypes.NameIdentifier, account.Id.ToString("D")));
             claims.Add(new Claim(ClaimTypes.Name, account.Username));
             claims.Add(new Claim(MembershipRebootConstants.ClaimTypes.Tenant, account.Tenant));
 
@@ -109,7 +109,7 @@ namespace BrockAllen.MembershipReboot
         {
             if (account == null) throw new ArgumentNullException("account");
 
-            Tracing.Verbose("[AuthenticationService.IssuePartialSignInCookieForTwoFactorAuth] Account ID: {0}", account.ID);
+            Tracing.Verbose("[AuthenticationService.IssuePartialSignInCookieForTwoFactorAuth] Account ID: {0}", account.Id);
 
             var claims = GetBasicClaims(account, method);
 
@@ -148,7 +148,7 @@ namespace BrockAllen.MembershipReboot
             if (user.Identity.IsAuthenticated)
             {
                 // already logged in, so use the current user's account
-                account = this.UserAccountService.GetByID(user.GetUserID());
+                account = this.UserAccountService.GetById(user.GetUserId());
             }
             else
             {

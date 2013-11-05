@@ -14,7 +14,7 @@ namespace BrockAllen.MembershipReboot.Mvc.Areas.UserAccount.Controllers
 
         public ActionResult Index()
         {
-            var acct = userAccountService.GetByID(this.User.GetUserID());
+            var acct = userAccountService.GetById(this.User.GetUserId());
             return View(acct);
         }
 
@@ -24,11 +24,18 @@ namespace BrockAllen.MembershipReboot.Mvc.Areas.UserAccount.Controllers
         {
             try
             {
-                this.userAccountService.ConfigureTwoFactorAuthentication(this.User.GetUserID(), mode);
+                this.userAccountService.ConfigureTwoFactorAuthentication(this.User.GetUserId(), mode);
                 
                 ViewData["Message"] = "Update Success";
                 
-                var acct = userAccountService.GetByID(this.User.GetUserID());
+                var acct = userAccountService.GetById(this.User.GetUserId());
+
+                if (mode == TwoFactorAuthMode.Authenticator)
+                    return View("AuthenticatorCode", acct);
+
+                if (mode == TwoFactorAuthMode.StaticPin)
+                    return View("SetPin", acct);
+
                 return View("Index", acct);
             }
             catch (ValidationException ex)
@@ -36,7 +43,24 @@ namespace BrockAllen.MembershipReboot.Mvc.Areas.UserAccount.Controllers
                 ModelState.AddModelError("", ex.Message);
             }
             
-            return View("Index", userAccountService.GetByID(this.User.GetUserID()));
+            return View("Index", userAccountService.GetById(this.User.GetUserId()));
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public ActionResult SetPin(string newPin) {
+            try {
+                this.userAccountService.SetStaticPin(this.User.GetUserId(), newPin);
+
+                ViewData["Message"] = "Update Success";
+
+                var acct = userAccountService.GetById(this.User.GetUserId());
+                return View("SetPin", acct);
+            } catch (ValidationException ex) {
+                ModelState.AddModelError("", ex.Message);
+            }
+
+            return View("SetPin", userAccountService.GetById(this.User.GetUserId()));
         }
     }
 }

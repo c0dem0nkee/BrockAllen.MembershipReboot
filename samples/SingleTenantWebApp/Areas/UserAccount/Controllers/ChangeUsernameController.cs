@@ -29,8 +29,8 @@ namespace BrockAllen.MembershipReboot.Mvc.Areas.UserAccount.Controllers
             {
                 try
                 {
-                    this.userAccountService.ChangeUsername(User.GetUserID(), model.NewUsername);
-                    this.authSvc.SignIn(User.GetUserID());
+                    this.userAccountService.ChangeUsername(User.GetUserId(), model.NewUsername);
+                    this.authSvc.SignIn(User.GetUserId());
                     return RedirectToAction("Success");
                 }
                 catch (ValidationException ex)

@@ -26,8 +26,8 @@ namespace BrockAllen.MembershipReboot.Mvc
 
     public class PasswordHistory
     {
-        public int ID { get; set; }
-        public Guid UserID { get; set; }
+        public int Id { get; set; }
+        public int UserId { get; set; }
         public DateTime DateChanged { get; set; }
         public string PasswordHash { get; set; }
     }
@@ -127,7 +127,7 @@ namespace BrockAllen.MembershipReboot.Mvc
             using (var db = new CustomDatabase())
             {
                 var oldEntires =
-                    db.PasswordHistory.Where(x => x.UserID == evt.Account.ID).OrderByDescending(x => x.DateChanged).ToArray();
+                    db.PasswordHistory.Where(x => x.UserId == evt.Account.Id).OrderByDescending(x => x.DateChanged).ToArray();
                 for (var i = 0; i < 3 && oldEntires.Length > i; i++)
                 {
                     var oldHash = oldEntires[i].PasswordHash;
@@ -149,7 +149,7 @@ namespace BrockAllen.MembershipReboot.Mvc
             {
                 var pw = new PasswordHistory
                 {
-                    UserID = evt.Account.ID,
+                    UserId = evt.Account.Id,
                     DateChanged = DateTime.UtcNow,
                     PasswordHash = evt.Account.HashedPassword
                 };

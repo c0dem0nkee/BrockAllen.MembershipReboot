@@ -11,13 +11,13 @@ namespace BrockAllen.MembershipReboot.MongoDb
             BsonClassMap.RegisterClassMap<Group>(cm =>
             {
                 cm.AutoMap();
-                cm.MapIdProperty(c => c.ID);
+                cm.MapIdProperty(c => c.Id);
             });
 
             BsonClassMap.RegisterClassMap<UserAccount>(cm =>
             {
                 cm.AutoMap();
-                cm.MapIdProperty(c => c.ID);
+                cm.MapIdProperty(c => c.Id);
             });
         }
 
